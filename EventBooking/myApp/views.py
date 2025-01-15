@@ -1,52 +1,41 @@
-from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-import json
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
 from .models import Event
+from .serializers import EventSerializer
 
-@csrf_exempt
+@api_view(['GET'])
 def get_all_events(request):
-    if request.method == 'GET':
-        events = Event.objects.all().values()
-        return JsonResponse({'events': list(events)}, safe=False)
+    events = Event.objects.all()
+    serializer = EventSerializer(events, many=True)
+    return Response(serializer.data)
 
-@csrf_exempt
+@api_view(['POST'])
 def add_new_event(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        event = Event.objects.create(
-            name=data.get('name'),
-            description=data.get('description'),
-            date=data.get('date')
-        )
-        return JsonResponse({'message': 'Event created', 'event_id': event.id}, status=201)
+    serializer = EventSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({'message': 'Event created successfully'}, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@csrf_exempt
+@api_view(['PUT'])
 def update_event(request, event_id):
-    if request.method == 'PUT':
-        data = json.loads(request.body)
-        try:
-            event = Event.objects.get(id=event_id)
-            event.name = data.get('name', event.name)
-            event.description = data.get('description', event.description)
-            event.date = data.get('date', event.date)
-            event.save()
-            return JsonResponse({'message': 'Event updated'})
-        except Event.DoesNotExist:
-            return JsonResponse({'error': 'Event not found'}, status=404)
+    try:
+        event = Event.objects.get(id=event_id)
+    except Event.DoesNotExist:
+        return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    serializer = EventSerializer(event, data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({'message': 'Event updated successfully'})
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@csrf_exempt
+@api_view(['DELETE'])
 def delete_event(request, event_id):
-    if request.method == 'DELETE':
-        try:
-            event = Event.objects.get(id=event_id)
-            event.delete()
-            return JsonResponse({'message': 'Event deleted'})
-        except Event.DoesNotExist:
-            return JsonResponse({'error': 'Event not found'}, status=404)
-
-def home(request):
-     context={}
-     return render(request, "myApp/home.html", context)
-
+    try:
+        event = Event.objects.get(id=event_id)
+        event.delete()
+        return Response({'message': 'Event deleted successfully'})
+    except Event.DoesNotExist:
+        return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
